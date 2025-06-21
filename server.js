@@ -40,6 +40,7 @@ const corsOptions = {
       process.env.FRONTEND_URL,
       'http://localhost:3000',
       'http://localhost:3001',
+      'https://social-media-frontend-rose.vercel.app',
       'https://social-media-frontend-rose.vercel.app/'
     ];
     
@@ -177,4 +178,10 @@ const startServer = async () => {
   });
 };
 
-startServer();
+// For local development
+if (require.main === module) {
+  startServer();
+}
+
+// Export for Vercel
+module.exports = app;
