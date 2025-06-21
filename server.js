@@ -40,15 +40,16 @@ const corsOptions = {
       process.env.FRONTEND_URL,
       'http://localhost:3000',
       'http://localhost:3001',
-      'https://social-media-frontend-rose.vercel.app',
-      'https://social-media-frontend-rose.vercel.app/'
+      'https://social-media-frontend-rose.vercel.app'
     ];
     
+    // Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      console.log('CORS blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -74,13 +75,39 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('combined'));
 }
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'Social Media Backend API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      auth: '/api/auth',
+      users: '/api/users',
+      posts: '/api/posts'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'success',
     message: 'Server is running!',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV || 'development',
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
+
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'API is working!',
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -94,6 +121,14 @@ app.all('*', (req, res) => {
   res.status(404).json({
     status: 'error',
     message: `Route ${req.originalUrl} not found`,
+    availableRoutes: {
+      root: '/',
+      health: '/health', 
+      test: '/api/test',
+      auth: '/api/auth/*',
+      users: '/api/users/*',
+      posts: '/api/posts/*'
+    }
   });
 });
 
@@ -104,83 +139,24 @@ app.use(errorHandler);
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI);
-    
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    
-    // Create indexes for better performance
-    await createIndexes();
-    
   } catch (error) {
     console.error('❌ Database connection error:', error.message);
-    process.exit(1);
   }
 };
 
-// Create database indexes for performance
-const createIndexes = async () => {
-  try {
-    const User = require('./models/User');
-    const Post = require('./models/Post');
-    
-    // User indexes
-    await User.collection.createIndex({ email: 1 }, { unique: true });
-    await User.collection.createIndex({ username: 1 }, { unique: true });
-    
-    // Post indexes (if Post model exists)
-    if (Post) {
-      await Post.collection.createIndex({ author: 1, createdAt: -1 });
-      await Post.collection.createIndex({ createdAt: -1 });
-      await Post.collection.createIndex({ likes: 1 });
-    }
-    
-    console.log('✅ Database indexes created successfully');
-  } catch (error) {
-    console.log('ℹ️ Some indexes already exist or Post model not found:', error.message);
-  }
-};
+// Initialize database connection
+connectDB();
 
-// Start server
+// Start server (for local development)
 const PORT = process.env.PORT || 5000;
 
-const startServer = async () => {
-  await connectDB();
-  
-  const server = app.listen(PORT, () => {
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📱 Environment: ${process.env.NODE_ENV}`);
     console.log(`🌐 Health check: http://localhost:${PORT}/health`);
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`📋 API Base URL: http://localhost:${PORT}/api`);
-    }
   });
-
-  // Handle unhandled promise rejections
-  process.on('unhandledRejection', (err, promise) => {
-    console.error('❌ Unhandled Promise Rejection:', err.message);
-    server.close(() => {
-      process.exit(1);
-    });
-  });
-
-  // Handle uncaught exceptions
-  process.on('uncaughtException', (err) => {
-    console.error('❌ Uncaught Exception:', err.message);
-    process.exit(1);
-  });
-
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('👋 SIGTERM received, shutting down gracefully...');
-    server.close(() => {
-      console.log('✅ Process terminated');
-    });
-  });
-};
-
-// For local development
-if (require.main === module) {
-  startServer();
 }
 
 // Export for Vercel
