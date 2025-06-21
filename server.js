@@ -40,7 +40,7 @@ const corsOptions = {
       process.env.FRONTEND_URL,
       'http://localhost:3000',
       'http://localhost:3001',
-      'https://your-frontend-domain.vercel.app'
+      'https://social-media-frontend-rose.vercel.app/'
     ];
     
     if (!origin) return callback(null, true);
